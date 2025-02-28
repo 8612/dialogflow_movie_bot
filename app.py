@@ -31,29 +31,35 @@ def dialogflow_webhook():
                 sinopse = filme["overview"]
                 nota = filme["vote_average"]
                 poster_path = filme.get("poster_path")  # Obtém o caminho da imagem
-
-                # Constrói a URL do pôster (se existir)
                 poster_url = IMAGE_BASE_URL + poster_path if poster_path else None
 
-                resposta = f"🎬 *{titulo}*\n📊 Nota: {nota}/10\n📖 Sinopse: {sinopse}"
+                # URL para mais detalhes do filme
+                filme_url = f"https://www.themoviedb.org/movie/{filme['id']}"
 
-                # Retorna a resposta formatada para o Telegram
-                return jsonify({
-                    "fulfillmentMessages": [
-                        {"text": {"text": [resposta]}},
-                        {"image": {"imageUri": poster_url}} if poster_url else {}
-                    ]
-                })
+                resposta_texto = f"*🎬 {titulo}*\n📊 *Nota:* {nota}/10\n📖 *Sinopse:* {sinopse}\n🔗 [Mais detalhes]({filme_url})"
+
+                # Criando o payload no formato do Telegram
+                telegram_payload = {
+                    "telegram": {
+                        "text": resposta_texto,
+                        "parse_mode": "Markdown",
+                        "reply_markup": {
+                            "inline_keyboard": [[
+                                {"text": "🎥 Ver no TMDb", "url": filme_url}
+                            ]]
+                        }
+                    }
+                }
+
+                if poster_url:
+                    telegram_payload["telegram"]["photo"] = poster_url  # Adiciona a imagem
+
+                return jsonify({"payload": telegram_payload})
+
             else:
-                resposta = "Não encontrei esse filme. Tente outro nome."
-
-        else:
-            resposta = "Por favor, informe o nome do filme."
-
-        return jsonify({"fulfillmentText": resposta})
+                return jsonify({"fulfillmentText": "Não encontrei esse filme. Tente outro nome."})
 
     return jsonify({"fulfillmentText": "Não entendi seu pedido."})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
-
