@@ -3,7 +3,7 @@ import requests
 
 app = Flask(__name__)
 
-TMDB_API_KEY = "SUA_CHAVE_TMDB"
+TMDB_API_KEY = "0d9e11262600ed80696cc5a61d153983"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
