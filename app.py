@@ -27,22 +27,23 @@ def webhook():
                                     f"Que tal o filme {movie['title']}? {movie['overview']}"
                                 ]
                             }
-                        ]
-                    }
-                    return jsonify(response)
-                else:
-                    response = {
-                        "fulfillmentMessages": [
-                            {
-                                "text": {
-                                    "text": [
-                                        "Desculpe, não encontrei nenhum filme desse gênero."
-                                    ]
-                                }
+                        }
+                    ]
+                }
+                return jsonify(response)
+            else:
+                response = {
+                    "fulfillmentMessages": [
+                        {
+                            "text": {
+                                "text": [
+                                    "Desculpe, não encontrei nenhum filme desse gênero."
+                                ]
                             }
-                        ]
-                    }
-                    return jsonify(response)
+                        }
+                    ]
+                }
+                return jsonify(response)
         else:
             response = {
                     "fulfillmentMessages": [
@@ -52,8 +53,8 @@ def webhook():
                                     "Desculpe, não encontrei esse gênero."
                                 ]
                             }
-                        ]
-                    }
+                        }
+                    ]
                 return jsonify(response)
     else:
         response = {
@@ -64,8 +65,8 @@ def webhook():
                                     "Desculpe, não entendi."
                                 ]
                             }
-                        ]
-                    }
+                        }
+                    ]
         return jsonify(response)
 
 def get_genre_id(genre_name):
@@ -79,4 +80,10 @@ def get_genre_id(genre_name):
 def get_random_movie_by_genre(genre_id):
     page = random.randint(1, 10)
     response = requests.get(f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}&language=pt-BR')
-    movies = response.json()['results
+    movies = response.json()['results']
+    if movies:
+        return random.choice(movies)
+    return None
+
+if __name__ == '__main__':
+    app.run(debug=True)
