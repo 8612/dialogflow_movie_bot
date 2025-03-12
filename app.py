@@ -12,8 +12,8 @@ def webhook():
     data = request.get_json()
     intent = data['queryResult']['intent']['displayName']
 
-    if intent == 'Gênero':
-        genre = data['queryResult']['parameters']['Gênero']
+    if intent == 'Genero':
+        genre = data['queryResult']['parameters']['Genero']
         genre_id = get_genre_id(genre)
 
         if genre_id:
