@@ -1,102 +1,86 @@
-from flask import Flask, request, jsonify
-import requests
 import os
 import random
+import requests
+import json
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
+# Sua chave da API do TMDb (coloque em uma variável de ambiente para segurança)
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.get_json()
-    intent = data['queryResult']['intent']['displayName']
+# Mapeamento de gêneros para IDs do TMDb
+GENERO_IDS = {
+    "ação": 28,
+    "aventura": 12,
+    "animação": 16,
+    "comédia": 35,
+    "crime": 80,
+    "documentário": 99,
+    "drama": 18,
+    "família": 10751,
+    "fantasia": 14,
+    "história": 36,
+    "terror": 27,
+    "música": 10402,
+    "mistério": 9648,
+    "romance": 10749,
+    "ficção científica": 878,
+    "thriller": 53,
+    "guerra": 10752,
+    "faroeste": 37
+}
 
-    if intent == 'Gênero':
-        genre = data['queryResult']['parameters']['Gênero']
-        genre_id = get_genre_id(genre)
+def buscar_filme_por_genero(genero):
+    """Busca um filme aleatório no TMDb com base no gênero."""
+    genero_id = GENERO_IDS.get(genero.lower())
 
-        if genre_id:
-            movie = get_random_movie_by_genre(genre_id)
-            if movie:
-                response = {
-                    "fulfillmentMessages": [
-                        {
-                            "text": {
-                                "text": [
-                                    f"Que tal o filme {movie['title']}? {movie['overview']}"
-                                ]
-                            }
-                        }
-                    ]
-                }
-                return jsonify(response)
-            else:
-                response = {
-                    "fulfillmentMessages": [
-                        {
-                            "text": {
-                                "text": [
-                                    "Desculpe, não encontrei nenhum filme desse gênero."
-                                ]
-                            }
-                        }
-                    ]
-                }
-                return jsonify(response)
-        else:
-            response = {
-                "fulfillmentMessages": [
-                    {
-                        "text": {
-                            "text": [
-                                "Desculpe, não encontrei esse gênero."
-                            ]
-                        }
-                    }
-                ]
-            }
-            return jsonify(response)
-
-    else:
-        response = {
-            "fulfillmentMessages": [
-                {
-                    "text": {
-                        "text": [
-                            "Desculpe, não entendi."
-                        ]
-                    }
-                }
-            ]
-        }
-        return jsonify(response)
-
-def get_genre_id(genre_name):
-    response = requests.get(f'https://api.themoviedb.org/3/genre/movie/list?api_key={TMDB_API_KEY}&language=pt-BR')
-    
-    if response.status_code != 200:
+    if not genero_id:
         return None
 
-    genres = response.json().get('genres', [])
-    for genre in genres:
-        if genre['name'].lower() == genre_name.lower():
-            return genre['id']
-    
+    url = f"https://api.themoviedb.org/3/discover/movie"
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": "pt-BR",
+        "sort_by": "popularity.desc",
+        "with_genres": genero_id,
+        "page": random.randint(1, 10)  # Para pegar filmes variados
+    }
+
+    response = requests.get(url, params=params)
+    data = response.json()
+
+    if data.get("results"):
+        filme = random.choice(data["results"])
+        titulo = filme["title"]
+        descricao = filme.get("overview", "Sem descrição disponível.")
+        poster = f"https://image.tmdb.org/t/p/w500{filme['poster_path']}" if filme.get("poster_path") else None
+        return titulo, descricao, poster
+
     return None
 
-def get_random_movie_by_genre(genre_id):
-    # Tentando garantir que pegamos uma página válida com resultados.
-    for _ in range(5):  # Tentando até 5 vezes para garantir que pegamos uma página com filmes
-        page = random.randint(1, 10)
-        response = requests.get(f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}&language=pt-BR')
-        
-        if response.status_code == 200:
-            movies = response.json().get('results', [])
-            if movies:
-                return random.choice(movies)
-    
-    return None
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot de recomendação de filmes está rodando!"
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    req = request.get_json()
+    genero = req.get("queryResult", {}).get("parameters", {}).get("genero")
+
+    if genero:
+        resultado = buscar_filme_por_genero(genero)
+        if resultado:
+            titulo, descricao, poster = resultado
+            response_text = f"🎬 *{titulo}*\n\n_{descricao}_\n\n"
+            if poster:
+                response_text += f"![Poster]({poster})"
+        else:
+            response_text = "Não encontrei nenhum filme desse gênero no momento. 😢"
+    else:
+        response_text = "Por favor, informe um gênero de filme! 🎭"
+
+    return jsonify({"fulfillmentText": response_text})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
