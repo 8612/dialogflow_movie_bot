@@ -46,43 +46,56 @@ def webhook():
                 return jsonify(response)
         else:
             response = {
-                    "fulfillmentMessages": [
-                        {
-                            "text": {
-                                "text": [
-                                    "Desculpe, não encontrei esse gênero."
-                                ]
-                            }
+                "fulfillmentMessages": [
+                    {
+                        "text": {
+                            "text": [
+                                "Desculpe, não encontrei esse gênero."
+                            ]
                         }
-                    ]
-                return jsonify(response)
+                    }
+                ]
+            }
+            return jsonify(response)
+
     else:
         response = {
-                    "fulfillmentMessages": [
-                        {
-                            "text": {
-                                "text": [
-                                    "Desculpe, não entendi."
-                                ]
-                            }
-                        }
-                    ]
+            "fulfillmentMessages": [
+                {
+                    "text": {
+                        "text": [
+                            "Desculpe, não entendi."
+                        ]
+                    }
+                }
+            ]
+        }
         return jsonify(response)
 
 def get_genre_id(genre_name):
     response = requests.get(f'https://api.themoviedb.org/3/genre/movie/list?api_key={TMDB_API_KEY}&language=pt-BR')
-    genres = response.json()['genres']
+    
+    if response.status_code != 200:
+        return None
+
+    genres = response.json().get('genres', [])
     for genre in genres:
         if genre['name'].lower() == genre_name.lower():
             return genre['id']
+    
     return None
 
 def get_random_movie_by_genre(genre_id):
-    page = random.randint(1, 10)
-    response = requests.get(f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}&language=pt-BR')
-    movies = response.json()['results']
-    if movies:
-        return random.choice(movies)
+    # Tentando garantir que pegamos uma página válida com resultados.
+    for _ in range(5):  # Tentando até 5 vezes para garantir que pegamos uma página com filmes
+        page = random.randint(1, 10)
+        response = requests.get(f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}&language=pt-BR')
+        
+        if response.status_code == 200:
+            movies = response.json().get('results', [])
+            if movies:
+                return random.choice(movies)
+    
     return None
 
 if __name__ == '__main__':
