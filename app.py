@@ -19,6 +19,7 @@ def webhook():
         if genre_id:
             movie = get_random_movie_by_genre(genre_id)
             if movie:
+                print(f"Filme encontrado: {movie['title']}") #Log
                 response = {
                     "fulfillmentMessages": [
                         {
@@ -32,6 +33,7 @@ def webhook():
                 }
                 return jsonify(response)
             else:
+                print("Nenhum filme encontrado.") #Log
                 response = {
                     "fulfillmentMessages": [
                         {
@@ -45,6 +47,7 @@ def webhook():
                 }
                 return jsonify(response)
         else:
+            print("Gênero não encontrado.") #Log
             response = {
                     "fulfillmentMessages": [
                         {
@@ -70,20 +73,10 @@ def webhook():
         return jsonify(response)
 
 def get_genre_id(genre_name):
-    response = requests.get(f'https://api.themoviedb.org/3/genre/movie/list?api_key={TMDB_API_KEY}&language=pt-BR')
-    genres = response.json()['genres']
-    for genre in genres:
-        if genre['name'].lower() == genre_name.lower():
-            return genre['id']
-    return None
+    # ...
 
 def get_random_movie_by_genre(genre_id):
-    page = random.randint(1, 10)
-    response = requests.get(f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}&language=pt-BR')
-    movies = response.json()['results']
-    if movies:
-        return random.choice(movies)
-    return None
+    # ...
 
 if __name__ == '__main__':
     app.run(debug=True)
