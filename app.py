@@ -1,98 +1,57 @@
 import requests
 from flask import Flask, request, jsonify
+import random
 
 app = Flask(__name__)
 
-# Chave da API do TMDb (substitua pela sua chave da API)
-TMDB_API_KEY = 'sua-chave-da-api-aqui'
-
-# Função para buscar um filme baseado no gênero
-def buscar_filme_por_genero(genero):
-    # Mapeamento dos gêneros (de acordo com o TMDb)
-    generos_map = {
-        "ação": 28,
-        "comédia": 35,
-        "drama": 18,
-        "terror": 27
-    }
-
-    # Verifica se o gênero existe no mapeamento
-    if genero not in generos_map:
-        return None
-
-    genero_id = generos_map[genero]
-
-    # Fazendo uma requisição à API do TMDb para buscar filmes do gênero
-    url = f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genero_id}&sort_by=popularity.desc'
-    response = requests.get(url)
-    data = response.json()
-
-    # Se não houver filmes, retorna None
-    if not data['results']:
-        return None
-
-    # Pega o primeiro filme da lista de resultados
-    filme = data['results'][0]
-
-    return {
-        "titulo": filme['title'],
-        "descricao": filme['overview'],
-        "poster": f"https://image.tmdb.org/t/p/w500/{filme['poster_path']}"
-    }
-
-# Função para gerar o Custom Payload para o Telegram
-def gerar_custom_payload(filme):
-    payload = {
-        "text": f"🎬 *{filme['titulo']}*\n\n_{filme['descricao']}_",
-        "parse_mode": "Markdown",
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {
-                        "text": "Ver Poster",
-                        "url": filme['poster']
-                    }
-                ]
-            ]
-        }
-    }
-
-    return payload
+TMDB_API_KEY = 'YOUR_API_KEY'  # Substitua com sua chave da API do TMDb
+TMDB_API_URL = 'https://api.themoviedb.org/3/discover/movie'
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.get_json()
+    req = request.get_json()
+    genre = req['queryResult']['parameters'].get('Genero')
 
-    # Pega o gênero da requisição do Dialogflow
-    genero = data['queryResult']['parameters']['Genero']
-
-    # Busca o filme baseado no gênero
-    filme = buscar_filme_por_genero(genero)
-
-    if filme is None:
-        return jsonify({
-            "fulfillmentMessages": [
-                {
-                    "text": {
-                        "text": ["Desculpe, não encontrei filmes desse gênero."]
-                    }
-                }
-            ]
-        })
-
-    # Gera o payload para enviar ao Telegram
-    custom_payload = gerar_custom_payload(filme)
-
-    # Retorna o fulfillment com o Custom Payload
-    response = {
-        "fulfillmentMessages": [
-            {
-                "payload": custom_payload
-            }
-        ]
+    # IDs dos gêneros no TMDb (exemplo: 28 é Ação, 35 é Comédia, etc.)
+    genre_ids = {
+        "Ação": 28,
+        "Comédia": 35,
+        "Drama": 18,
+        "Terror": 27,
+        "Ficção científica": 878,
+        "Romance": 10749
     }
 
-    return jsonify(response)
+    # Verifique se o gênero fornecido é válido
+    genre_id = genre_ids.get(genre)
+    if genre_id:
+        params = {
+            'api_key': TMDB_API_KEY,
+            'with_genres': genre_id,
+            'sort_by': 'popularity.desc'
+        }
+
+        # Faz a requisição à API do TMDb
+        response = requests.get(TMDB_API_URL, params=params)
+        movies = response.json().get('results')
+
+        if movies:
+            # Escolher um filme aleatório da lista de resultados
+            movie = random.choice(movies)
+            movie_title = movie['title']
+            movie_overview = movie['overview']
+            movie_poster = f"https://image.tmdb.org/t/p/w500/{movie['poster_path']}"
+
+            fulfillment_text = f"🎬 *{movie_title}*\n\n_{movie_overview}_\n\n[Ver Poster]({movie_poster})"
+        else:
+            fulfillment_text = "Desculpe, não encontrei filmes para esse gênero."
+
+    else:
+        fulfillment_text = "Desculpe, não entendi o gênero. Tente novamente com um gênero válido como Ação, Comédia, etc."
+
+    return jsonify({
+        'fulfillmentText': fulfillment_text
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
