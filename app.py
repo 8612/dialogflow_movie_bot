@@ -1,90 +1,98 @@
-import os
-import random
 import requests
-import json
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Sua chave da API do TMDb (defina como variável de ambiente no Render)
-TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+# Chave da API do TMDb (substitua pela sua chave da API)
+TMDB_API_KEY = 'sua-chave-da-api-aqui'
 
-# Mapeamento de gêneros para os IDs do TMDb
-GENERO_IDS = {
-    "ação": 28,
-    "aventura": 12,
-    "animação": 16,
-    "comédia": 35,
-    "crime": 80,
-    "documentário": 99,
-    "drama": 18,
-    "família": 10751,
-    "fantasia": 14,
-    "história": 36,
-    "terror": 27,
-    "música": 10402,
-    "mistério": 9648,
-    "romance": 10749,
-    "ficção científica": 878,
-    "thriller": 53,
-    "guerra": 10752,
-    "faroeste": 37
-}
-
+# Função para buscar um filme baseado no gênero
 def buscar_filme_por_genero(genero):
-    """Busca um filme aleatório no TMDb com base no gênero."""
-    genero_id = GENERO_IDS.get(genero.lower())
-
-    if not genero_id:
-        return None
-
-    url = "https://api.themoviedb.org/3/discover/movie"
-    params = {
-        "api_key": TMDB_API_KEY,
-        "language": "pt-BR",
-        "sort_by": "popularity.desc",
-        "with_genres": genero_id,
-        "page": random.randint(1, 10)  # Paginação aleatória para mais variedade
+    # Mapeamento dos gêneros (de acordo com o TMDb)
+    generos_map = {
+        "ação": 28,
+        "comédia": 35,
+        "drama": 18,
+        "terror": 27
     }
 
-    response = requests.get(url, params=params)
+    # Verifica se o gênero existe no mapeamento
+    if genero not in generos_map:
+        return None
+
+    genero_id = generos_map[genero]
+
+    # Fazendo uma requisição à API do TMDb para buscar filmes do gênero
+    url = f'https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genero_id}&sort_by=popularity.desc'
+    response = requests.get(url)
     data = response.json()
 
-    if data.get("results"):
-        filme = random.choice(data["results"])
-        titulo = filme["title"]
-        descricao = filme.get("overview", "Sem descrição disponível.")
-        poster = f"https://image.tmdb.org/t/p/w500{filme['poster_path']}" if filme.get("poster_path") else None
-        return titulo, descricao, poster
+    # Se não houver filmes, retorna None
+    if not data['results']:
+        return None
 
-    return None
+    # Pega o primeiro filme da lista de resultados
+    filme = data['results'][0]
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Bot de recomendação de filmes está rodando!"
+    return {
+        "titulo": filme['title'],
+        "descricao": filme['overview'],
+        "poster": f"https://image.tmdb.org/t/p/w500/{filme['poster_path']}"
+    }
 
-@app.route("/webhook", methods=["POST"])
+# Função para gerar o Custom Payload para o Telegram
+def gerar_custom_payload(filme):
+    payload = {
+        "text": f"🎬 *{filme['titulo']}*\n\n_{filme['descricao']}_",
+        "parse_mode": "Markdown",
+        "reply_markup": {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "Ver Poster",
+                        "url": filme['poster']
+                    }
+                ]
+            ]
+        }
+    }
+
+    return payload
+
+@app.route('/webhook', methods=['POST'])
 def webhook():
-    try:
-        req = request.get_json()
-        genero = req.get("queryResult", {}).get("parameters", {}).get("Genero")  # Verifique o nome no Dialogflow
+    data = request.get_json()
 
-        if genero:
-            resultado = buscar_filme_por_genero(genero)
-            if resultado:
-                titulo, descricao, poster = resultado
-                response_text = f"🎬 *{titulo}*\n\n_{descricao}_\n\n"
-                if poster:
-                    response_text += f"[Ver Poster]({poster})"
-            else:
-                response_text = "Não encontrei nenhum filme desse gênero no momento. 😢"
-        else:
-            response_text = "Por favor, informe um gênero de filme! 🎭"
+    # Pega o gênero da requisição do Dialogflow
+    genero = data['queryResult']['parameters']['Genero']
 
-        return jsonify({"fulfillmentText": response_text})
+    # Busca o filme baseado no gênero
+    filme = buscar_filme_por_genero(genero)
 
-    except Exception as e:
-        return jsonify({"fulfillmentText": f"❌ Erro no servidor: {str(e)}"})
+    if filme is None:
+        return jsonify({
+            "fulfillmentMessages": [
+                {
+                    "text": {
+                        "text": ["Desculpe, não encontrei filmes desse gênero."]
+                    }
+                }
+            ]
+        })
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    # Gera o payload para enviar ao Telegram
+    custom_payload = gerar_custom_payload(filme)
+
+    # Retorna o fulfillment com o Custom Payload
+    response = {
+        "fulfillmentMessages": [
+            {
+                "payload": custom_payload
+            }
+        ]
+    }
+
+    return jsonify(response)
+
+if __name__ == '__main__':
+    app.run(debug=True)
