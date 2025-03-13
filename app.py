@@ -6,10 +6,10 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Sua chave da API do TMDb (coloque em uma variável de ambiente para segurança)
+# Sua chave da API do TMDb (defina como variável de ambiente no Render)
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-# Mapeamento de gêneros para IDs do TMDb
+# Mapeamento de gêneros para os IDs do TMDb
 GENERO_IDS = {
     "ação": 28,
     "aventura": 12,
@@ -38,13 +38,13 @@ def buscar_filme_por_genero(genero):
     if not genero_id:
         return None
 
-    url = f"https://api.themoviedb.org/3/discover/movie"
+    url = "https://api.themoviedb.org/3/discover/movie"
     params = {
         "api_key": TMDB_API_KEY,
         "language": "pt-BR",
         "sort_by": "popularity.desc",
         "with_genres": genero_id,
-        "page": random.randint(1, 10)  # Para pegar filmes variados
+        "page": random.randint(1, 10)  # Paginação aleatória para mais variedade
     }
 
     response = requests.get(url, params=params)
@@ -65,22 +65,26 @@ def home():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    req = request.get_json()
-    genero = req.get("queryResult", {}).get("parameters", {}).get("genero")
+    try:
+        req = request.get_json()
+        genero = req.get("queryResult", {}).get("parameters", {}).get("Genero")  # Verifique o nome no Dialogflow
 
-    if genero:
-        resultado = buscar_filme_por_genero(genero)
-        if resultado:
-            titulo, descricao, poster = resultado
-            response_text = f"🎬 *{titulo}*\n\n_{descricao}_\n\n"
-            if poster:
-                response_text += f"![Poster]({poster})"
+        if genero:
+            resultado = buscar_filme_por_genero(genero)
+            if resultado:
+                titulo, descricao, poster = resultado
+                response_text = f"🎬 *{titulo}*\n\n_{descricao}_\n\n"
+                if poster:
+                    response_text += f"[Ver Poster]({poster})"
+            else:
+                response_text = "Não encontrei nenhum filme desse gênero no momento. 😢"
         else:
-            response_text = "Não encontrei nenhum filme desse gênero no momento. 😢"
-    else:
-        response_text = "Por favor, informe um gênero de filme! 🎭"
+            response_text = "Por favor, informe um gênero de filme! 🎭"
 
-    return jsonify({"fulfillmentText": response_text})
+        return jsonify({"fulfillmentText": response_text})
+
+    except Exception as e:
+        return jsonify({"fulfillmentText": f"❌ Erro no servidor: {str(e)}"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
